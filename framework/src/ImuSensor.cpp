@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2016 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2017 Nicolae Rosia. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,65 +31,29 @@
  *
  ****************************************************************************/
 
-#pragma once
-
-#define __IMU_USE_I2C
 #include "ImuSensor.hpp"
-
-#define DRV_DF_DEVTYPE_MPU6050 0x45
-
-#define MPU_WHOAMI_6050		 0x68
-#define MPU6050_SLAVE_ADDRESS 0x68       /* 7-bit slave address */
-
-// update frequency 1000 Hz
-#define MPU6050_MEASURE_INTERVAL_US 1000
-
-#define MPU6050_BUS_FREQUENCY_IN_KHZ 400
-#define MPU6050_TRANSFER_TIMEOUT_IN_USECS 900
 
 namespace DriverFramework
 {
 
-class MPU6050: public ImuSensor
+void printImuValues(struct imu_sensor_data &data)
 {
-public:
-	MPU6050(const char *device_path) :
-		ImuSensor(device_path, MPU6050_MEASURE_INTERVAL_US, false), // false = sensor has no mag
-		_last_temp_c(0.0f),
-		_temp_initialized(false),
-		_packets_per_cycle_filtered(1.0)
-	{
-		m_id.dev_id_s.devtype = DRV_DF_DEVTYPE_MPU6050;
-		m_id.dev_id_s.address = MPU6050_SLAVE_ADDRESS;
-	}
+	DF_LOG_INFO("IMU: accel: [%.2f, %.2f, %.2f] m/s^2",
+		    (double)data.accel_m_s2_x,
+		    (double)data.accel_m_s2_y,
+		    (double)data.accel_m_s2_z);
+	DF_LOG_INFO("     gyro:  [%.2f, %.2f, %.2f] rad/s",
+		    (double)data.gyro_rad_s_x,
+		    (double)data.gyro_rad_s_y,
+		    (double)data.gyro_rad_s_z);
 
-	// @return 0 on success, -errno on failure
-	virtual int start();
+	DF_LOG_INFO("     mag:  [%.6f, %.6f, %.6f] ga",
+		    (double)data.mag_ga_x,
+		    (double)data.mag_ga_y,
+		    (double)data.mag_ga_z);
 
-	// @return 0 on success, -errno on failure
-	virtual int stop();
-
-protected:
-	virtual void _measure();
-	virtual int _publish(struct imu_sensor_data &data) = 0;
-
-private:
-	// @returns 0 on success, -errno on failure
-	int mpu6050_init();
-
-	// @returns 0 on success, -errno on failure
-	int mpu6050_deinit();
-
-	// @return the number of FIFO bytes to collect
-	int get_fifo_count();
-
-	void reset_fifo();
-
-	float _last_temp_c;
-	bool _temp_initialized;
-	float _packets_per_cycle_filtered;
-};
+	DF_LOG_INFO("     temp:  %.2f C",
+		    (double)data.temp_c);
+}
 
 }
-// namespace DriverFramework
-

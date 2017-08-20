@@ -160,9 +160,8 @@ int DevObj::start()
 		return -2;
 	}
 
-	// Can't start if no interval specified
 	if (m_sample_interval_usecs == 0) {
-		return -3;
+		return 0;
 
 	} else {
 		do {
@@ -189,6 +188,9 @@ int DevObj::stop()
 
 	if (m_work_handle.isValid()) {
 		WorkMgr::releaseWorkHandle(m_work_handle);
+
+	} else if (m_sample_interval_usecs == 0) {
+		return 0;
 
 	} else {
 		// Driver wasn't running
@@ -304,13 +306,7 @@ int DevObj::removeHandle(DevHandle &h)
 	}
 
 	m_handle_lock.unlock();
-	return m_handles.size();
-}
-
-void DevObj::updateNotify()
-{
-	DF_LOG_DEBUG("DevObj::updateNotify");
-	DevMgr::updateNotify(*this);
+	return (int)m_handles.size();
 }
 
 void DevObj::setSampleInterval(unsigned int sample_interval_usecs)
