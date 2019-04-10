@@ -296,7 +296,7 @@ void WorkItems::_processExpiredWorkItems(uint64_t &next)
 
 			now = offsetTime();
 			elapsed = now - item->m_queue_time;
-			//DF_LOG_DEBUG("now = %lu elapsed = %lu delay = %luusec\n", now, elapsed, item.m_delay_usec);
+			DF_LOG_DEBUG("now = %lu elapsed = %lu queue_time = %luusec", now, elapsed, item->m_queue_time);
 
 			if (elapsed >= item->m_delay_usec) {
 				DF_LOG_DEBUG("WorkItems::processExpiredWorkItems  do work: (%p) (%u)", item, item->m_delay_usec);
@@ -363,7 +363,7 @@ void WorkItems::_processExpiredWorkItems(uint64_t &next)
 
 // disable scheduling adjustment on embedded platforms (tests showed worse performance on RPI & QuRT with this)
 // see test results: https://github.com/PX4/DriverFramework/pull/155
-#if defined(__DF_LINUX) && !defined(__DF_RPI) && !defined(__DF_BEBOP) && !defined(__DF_EDISON) && !defined(__DF_OCPOC)
+#if defined(__DF_LINUX) && !defined(__DF_RPI) && !defined(__DF_BEBOP) && !defined(__DF_EDISON) && !defined(__DF_OCPOC) && !defined(__DF_BBBLUE)
 
 	if (had_work) {
 		// Scheduling can have jitter, so adjust only by a fraction.

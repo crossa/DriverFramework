@@ -38,6 +38,16 @@
 #include "DriverFramework.hpp"
 #include "SyncObj.hpp"
 
+#if defined(__PX4_POSIX) || defined(__PX4_QURT)
+// If we're building for PX4, we can use the PX4 define and let the PX4
+// build system handle it.
+#include <px4_time.h>
+#define df_pthread_cond_timedwait px4_pthread_cond_timedwait
+#else
+#include <pthread.h>
+#define df_pthread_cond_timedwait pthread_cond_timedwait
+#endif
+
 #define DEBUG(FMT, ...)
 //#define DEBUG(FMT, ...) printf(FMT, __VA_ARGS__)
 
@@ -51,9 +61,9 @@ SyncObj::SyncObj()
 	pthread_condattr_t condattr{};
 	pthread_condattr_init(&condattr);
 
-// CLOCK_MONOTONIC is not available on OSX and NuttX
+// CLOCK_MONOTONIC is not available on macOS and NuttX
 // CLOCK_MONOTONIC is the default on QuRT so it need not be explicitly set
-#if !defined(__DF_QURT) && !(defined(__APPLE__) && defined(__MACH__)) && !defined(__DF_NUTTX)
+#if !defined(__DF_QURT) && !defined(__DF_APPLE) && !defined(__DF_NUTTX)
 
 	// Configure the pthread_cond_timedwait to use the monotonic clock
 	// because we don't want time skews to influence the scheduling.
@@ -78,17 +88,13 @@ void SyncObj::unlock()
 	pthread_mutex_unlock(&m_lock);
 }
 
-// waitOnSignal must be called inside a lock()
-// of this object
-int SyncObj::waitOnSignal(unsigned long timeout_us)
+// waitOnSignal must be called inside a lock() of this object
+int SyncObj::waitOnSignal(const struct timespec *ts)
 {
 	int ret;
-	DEBUG("wait %p %lu us\n", &m_new_data_cond, timeout_us);
 
-	if (timeout_us) {
-		struct timespec ts {};
-		ret = absoluteTimeInFuture(timeout_us, ts);
-		ret = ret ? ret : pthread_cond_timedwait(&m_new_data_cond, &m_lock, &ts);
+	if (ts) {
+		ret = df_pthread_cond_timedwait(&m_new_data_cond, &m_lock, ts);
 
 	} else {
 		ret = pthread_cond_wait(&m_new_data_cond, &m_lock);

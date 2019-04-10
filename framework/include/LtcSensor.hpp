@@ -31,70 +31,72 @@
  *
  ****************************************************************************/
 
+/***************************************************
+ * modified by Christoph Tobler <christoph@px4.io>
+ ***************************************************/
+
 #pragma once
 
 #include <stdint.h>
 #include "SyncObj.hpp"
-
-#if defined(__DF_OCPOC)
-#define __BARO_USE_SPI
-#endif
-
-#if defined(__BARO_USE_SPI)
-#include "SPIDevObj.hpp"
-#else
 #include "I2CDevObj.hpp"
-#endif
 
-#define BARO_CLASS_PATH  "/dev/baro"
+#define LTC2946_CLASS_PATH  "/dev/ltc"
+
+#define LTC2946_MEASURE_INTERVAL_US 20000  // 1000000/50Hz
 
 namespace DriverFramework
 {
 
-/**
- * The sensor independent data structure containing pressure values.
- */
-struct baro_sensor_data {
-	int32_t  t_fine; 		/*! used internally to calculate a temperature compensated pressure value. */
-	float    pressure_pa; 		/*! current pressure in Pascals */
-	float    temperature_c;		/*! current temperature in C at which the pressure was read */
-	uint64_t read_counter;		/*! the total number of pressure sensor readings since the system was started */
-	uint64_t last_read_time_usec; 	/*! time stamp indicating the time at which the pressure in this data structure was read */
-	uint64_t error_counter;		/*! the total number of errors detected when reading the pressure, since the system was started */
-#if defined(__DF_BBBLUE_USE_RC_BMP280_IMP)
-	float    altitude_m;        /*! current altitude in meter at which the pressure was read */
-#endif
+/** * The sensor independent data structure containing LTC2946 values. */
+struct ltc2946_sensor_data {
+	// 5V sensor
+	float board_voltage_V; // [V]
+	float board_current_A; // [A]
+	// Battery sensor
+	float battery_voltage_V; // [V]
+	float battery_current_A; // [A]
+
+	float remain;
+	uint64_t read_counter; /*! the total number of sensor readings since the system was started */
+	uint64_t error_counter;
 };
 
-void printPressureValues(struct baro_sensor_data &data);
-
-#if defined(__BARO_USE_SPI)
-class BaroSensor : public SPIDevObj
-#else
-class BaroSensor : public I2CDevObj
-#endif
+class LtcSensor : public I2CDevObj
 {
 public:
-	BaroSensor(const char *device_path, unsigned int sample_interval_usec) :
-#if defined(__BARO_USE_SPI)
-		SPIDevObj("BaroSensor", device_path, BARO_CLASS_PATH, sample_interval_usec)
-#else
-		I2CDevObj("BaroSensor", device_path, BARO_CLASS_PATH, sample_interval_usec)
-#endif
+	LtcSensor(const char *device_path, unsigned int sample_interval_usec) :
+		I2CDevObj("LtcSensor", device_path, LTC2946_CLASS_PATH, LTC2946_MEASURE_INTERVAL_US)
 	{}
 
-	virtual ~BaroSensor() = default;
+	~LtcSensor() {}
 
-	void setAltimeter(float altimeter_setting_in_mbars)
+	static int getSensorData(DevHandle &h, struct ltc2946_sensor_data &out_data, bool is_new_data_required)
 	{
-		m_altimeter_mbars = altimeter_setting_in_mbars;
+		LtcSensor *me = DevMgr::getDevObjByHandle<LtcSensor>(h);
+		int ret = -1;
+
+		if (me != nullptr) {
+			me->m_synchronize.lock();
+
+			if (is_new_data_required) {
+				me->m_synchronize.waitOnSignal(0);
+			}
+
+			out_data = me->m_sensor_data;
+			me->m_synchronize.unlock();
+			ret = 0;
+		}
+
+		return ret;
 	}
+
 
 protected:
 	virtual void _measure() = 0;
 
-	struct baro_sensor_data	m_sensor_data {};
-	float 				m_altimeter_mbars{0.0f};
+	struct ltc2946_sensor_data		m_sensor_data;
+	SyncObj 			m_synchronize;
 };
 
 }; // namespace DriverFramework

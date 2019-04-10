@@ -15,7 +15,7 @@ matrix:
       sudo: false
       compiler: clang
     - os: osx
-      osx_image: xcode8
+      osx_image: xcode9.4
       sudo: true
 
 addons:
@@ -32,13 +32,12 @@ addons:
 before_script:
   - export PATH=~/bin:$PATH
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then
-      brew install astyle
-      ;
+      brew update;
+      brew install astyle;
     fi
 
 script:
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then
-      make check-style
-      ;
+      make check-style;
     fi
   - make run

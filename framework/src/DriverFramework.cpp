@@ -34,7 +34,6 @@
 * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *************************************************************************/
 #include <stdio.h>
-#include <pthread.h>
 #include <errno.h>
 #include <time.h>
 #include "DriverFramework.hpp"
@@ -122,33 +121,23 @@ static uint64_t TsToAbstime(struct timespec *ts)
 	return result;
 }
 
-static uint64_t getStartTime()
+static uint64_t starttime = 0;
+
+static void initStartTime()
 {
-	static SyncObj *lock = nullptr;
-	static uint64_t starttime = 0;
-
-	if (!lock) {
-		lock = new SyncObj;
-	}
-
 	struct timespec ts = {};
-
-	lock->lock();
-
 	int ret = absoluteTime(ts);
 
 	if (ret != 0) {
-		printf("ERROR: absoluteTime returned (%d)", ret);
-		lock->unlock();
-		return 0;
+		printf("ERROR: absoluteTime returned (%d)\n", ret);
+		return;
 	}
 
-	if (!starttime) {
-		starttime = TsToAbstime(&ts);
-	}
+	starttime = TsToAbstime(&ts);
+}
 
-	lock->unlock();
-
+static inline uint64_t getStartTime()
+{
 	return starttime;
 }
 
@@ -249,6 +238,8 @@ void Framework::shutdown()
 
 int Framework::initialize()
 {
+	initStartTime(); // must be initialized before any other timing methods are called
+
 	DF_LOG_DEBUG("Framework::initialize");
 
 	g_framework = new SyncObj;
@@ -301,7 +292,7 @@ void Framework::waitForShutdown()
 {
 	// Block until shutdown requested
 	g_framework->lock();
-	g_framework->waitOnSignal(0);
+	g_framework->waitOnSignal(nullptr);
 	g_framework->unlock();
 
 	delete g_framework;
@@ -338,7 +329,7 @@ static int setRealtimeSched()
 	int policy = SCHED_FIFO;
 	sched_param param {};
 
-	param.sched_priority = 10;
+	param.sched_priority = sched_get_priority_max(SCHED_FIFO);
 
 	int ret = pthread_setschedparam(pthread_self(), policy, &param);
 
@@ -479,8 +470,8 @@ void HRTWorkQueue::process()
 
 		WorkItems::processExpiredWorkItems(next);
 
-		now = offsetTime();
-		DF_LOG_DEBUG("now=%" PRIu64, now);
+		struct timespec next_ts = offsetTimeToAbsoluteTime(next);
+
 #ifdef __DF_QURT
 
 		// to accomodate sleep inaccuracy in the platform
@@ -489,17 +480,15 @@ void HRTWorkQueue::process()
 
 		if (next > now) {
 #endif
-			uint64_t wait_time_usec = next - now;
-
-			DF_LOG_DEBUG("HRTWorkQueue::process waiting for work (%" PRIi64 "usec)", wait_time_usec);
+			DF_LOG_DEBUG("HRTWorkQueue::process waiting until (%" PRIi64 "usec)", next);
 			// Wait until next expiry or until a new item is rescheduled
 			m_reschedule.lock();
-			m_reschedule.waitOnSignal(wait_time_usec);
+			m_reschedule.waitOnSignal(&next_ts);
 			m_reschedule.unlock();
-			DF_LOG_DEBUG("Done wait");
+			DF_LOG_DEBUG("HRTWorkQueue::process done wait");
 		}
 
-		DF_LOG_DEBUG("not waiting for work (%" PRIi64 "usec)", wait_time_usec);
+		DF_LOG_DEBUG("HRTWorkQueue::process not waiting for work");
 	}
 };
 

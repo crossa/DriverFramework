@@ -41,7 +41,7 @@ if("${DF_TARGET}" STREQUAL "nuttx")
 		SyncObj.cpp
 		Time.cpp
 		)
-	add_dependencies(df_driver_framework platforms__nuttx)
+	add_dependencies(df_driver_framework prebuild_targets)
 else()
 	df_add_library(df_driver_framework
 		DriverFramework.cpp
@@ -59,6 +59,15 @@ else()
 		BaroSensor.cpp
 		MagSensor.cpp
 		)
+	# Try to check if i2c-dev.h is sane
+	if (COMMAND check_i2c_dev_h)
+		check_i2c_dev_h(I2C_DEV_H_HAS_I2C_MSG)
+		if (${I2C_DEV_H_HAS_I2C_MSG})
+			target_compile_definitions(df_driver_framework PRIVATE
+					I2C_DEV_H_HAS_I2C_MSG
+					)
+		endif()
+	endif()
 endif()
 
 # vim: set noet fenc=utf-8 ff=unix ft=cmake :

@@ -340,14 +340,14 @@ int MPU6050::start()
 		DF_LOG_ERR("MPU6050 sensor WHOAMI wrong: 0x%X, should be: 0x%X",
 			   sensor_id, MPU_WHOAMI_6050);
 		result = -1;
-		goto exit;
+		goto start_exit;
 	}
 
 	result = mpu6050_init();
 
 	if (result != 0) {
 		DF_LOG_ERR("error: IMU sensor initialization failed, sensor read thread not started");
-		goto exit;
+		goto start_exit;
 	}
 
 	result = DevObj::start();
@@ -357,7 +357,7 @@ int MPU6050::start()
 		return result;
 	}
 
-exit:
+start_exit:
 	return result;
 }
 
@@ -508,7 +508,7 @@ void MPU6050::_measure()
 			if (fabsf(temp_c - _last_temp_c) > 2.0f) {
 				DF_LOG_ERR(
 					"FIFO corrupt, temp difference: %f, last temp: %f, current temp: %f",
-					fabs(temp_c - _last_temp_c), (double)_last_temp_c, (double)temp_c);
+					(double)fabsf(temp_c - _last_temp_c), (double)_last_temp_c, (double)temp_c);
 				reset_fifo();
 				_temp_initialized = false;
 				++m_sensor_data.fifo_corruption_counter;
